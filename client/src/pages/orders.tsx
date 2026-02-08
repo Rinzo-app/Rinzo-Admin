@@ -77,7 +77,7 @@ export default function OrdersPage() {
     <div className="p-6">
       <PageHeader
         title="Orders"
-        description="View orders for debugging purposes (read-only)"
+        description="View laundry orders for debugging purposes (read-only)"
       />
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">

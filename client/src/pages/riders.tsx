@@ -128,7 +128,7 @@ export default function RidersPage() {
     <div className="p-6">
       <PageHeader
         title="Rider Management"
-        description="Review, approve, and manage rider registrations"
+        description="Review, approve, and manage pickup & delivery rider registrations"
       />
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">

@@ -127,8 +127,8 @@ export default function ShopsPage() {
   return (
     <div className="p-6">
       <PageHeader
-        title="Shop Management"
-        description="Review, approve, and manage shop registrations"
+        title="Laundry Shop Management"
+        description="Review, approve, and manage laundry shop registrations"
       />
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">

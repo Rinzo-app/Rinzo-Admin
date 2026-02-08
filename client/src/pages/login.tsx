@@ -39,7 +39,7 @@ export default function LoginPage() {
             S
           </div>
           <h1 className="text-xl font-semibold" data-testid="text-login-title">Saaf Admin</h1>
-          <p className="text-sm text-muted-foreground mt-1">Internal Control Panel</p>
+          <p className="text-sm text-muted-foreground mt-1">Laundry Marketplace Admin</p>
         </div>
 
         <Card>

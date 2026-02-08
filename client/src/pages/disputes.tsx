@@ -134,7 +134,7 @@ export default function DisputesPage() {
     <div className="p-6">
       <PageHeader
         title="Support & Disputes"
-        description="Manage disputes raised by customers, shops, and riders"
+        description="Manage disputes raised by customers, laundry shops, and riders"
       />
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">

@@ -35,7 +35,7 @@ export function AppSidebar() {
           </div>
           <div>
             <h2 className="text-sm font-semibold leading-none" data-testid="text-app-title">Saaf Admin</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Internal Control Panel</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Laundry Marketplace Admin</p>
           </div>
         </div>
       </SidebarHeader>

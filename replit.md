@@ -1,7 +1,7 @@
 # Saaf Admin - Internal Control Panel
 
 ## Overview
-Internal admin web app for the Saaf 3-sided marketplace. Used by admins to approve shops, approve delivery riders, and manage disputes.
+Internal admin web app for the Saaf laundry marketplace. Used by admins to approve laundry shops, approve pickup/delivery riders, and manage disputes.
 
 ## Architecture
 - **Frontend**: React + Vite + TypeScript + Tailwind CSS + shadcn/ui
@@ -14,8 +14,8 @@ Internal admin web app for the Saaf 3-sided marketplace. Used by admins to appro
 - Username: `ops` | Password: `ops123`
 
 ## Key Features
-1. **Shop Management** - View/approve/reject/suspend shops
-2. **Rider Management** - View/approve/reject/suspend riders
+1. **Laundry Shop Management** - View/approve/reject/suspend laundry shops
+2. **Rider Management** - View/approve/reject/suspend pickup & delivery riders
 3. **Disputes** - View disputes, update status, add internal notes
 4. **Orders** - Read-only order viewing for debugging
 
