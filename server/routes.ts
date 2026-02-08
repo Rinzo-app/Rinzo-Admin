@@ -73,7 +73,7 @@ export async function registerRoutes(
   app.patch("/api/shops/:id/status", requireAuth, async (req: Request, res: Response) => {
     try {
       const { status } = z.object({ status: shopStatusEnum }).parse(req.body);
-      const shop = await storage.updateShopStatus(req.params.id, status);
+      const shop = await storage.updateShopStatus(req.params.id as string, status);
       if (!shop) return res.status(404).json({ message: "Shop not found" });
       return res.json(shop);
     } catch (err) {
@@ -90,7 +90,7 @@ export async function registerRoutes(
   app.patch("/api/riders/:id/status", requireAuth, async (req: Request, res: Response) => {
     try {
       const { status } = z.object({ status: riderStatusEnum }).parse(req.body);
-      const rider = await storage.updateRiderStatus(req.params.id, status);
+      const rider = await storage.updateRiderStatus(req.params.id as string, status);
       if (!rider) return res.status(404).json({ message: "Rider not found" });
       return res.json(rider);
     } catch (err) {
@@ -110,7 +110,7 @@ export async function registerRoutes(
         status: disputeStatusEnum,
         internalNotes: z.string().optional().default(""),
       }).parse(req.body);
-      const dispute = await storage.updateDispute(req.params.id, status, internalNotes);
+      const dispute = await storage.updateDispute(req.params.id as string, status, internalNotes);
       if (!dispute) return res.status(404).json({ message: "Dispute not found" });
       return res.json(dispute);
     } catch (err) {
