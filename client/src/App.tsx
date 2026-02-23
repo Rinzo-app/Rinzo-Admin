@@ -11,6 +11,7 @@ import ShopsPage from "@/pages/shops";
 import RidersPage from "@/pages/riders";
 import DisputesPage from "@/pages/disputes";
 import OrdersPage from "@/pages/orders";
+import ApprovalsPage from "@/pages/approvals";
 import NotFound from "@/pages/not-found";
 import { Loader2 } from "lucide-react";
 
@@ -38,6 +39,7 @@ function AuthenticatedLayout() {
               <Route path="/riders" component={RidersPage} />
               <Route path="/disputes" component={DisputesPage} />
               <Route path="/orders" component={OrdersPage} />
+              <Route path="/approvals" component={ApprovalsPage} />
               <Route component={NotFound} />
             </Switch>
           </main>

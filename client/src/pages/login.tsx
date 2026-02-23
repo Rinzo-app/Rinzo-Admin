@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { loginSchema, type LoginInput } from "@shared/schema";
+import { loginSchema, type LoginInput } from "@/lib/schemas";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ export default function LoginPage() {
     try {
       await login(data.username, data.password);
     } catch (err: any) {
-      setError(err.message?.includes("401") ? "Invalid credentials" : "Login failed. Please try again.");
+      setError(err.message || "Login failed. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -38,7 +38,7 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-md bg-primary text-primary-foreground font-bold text-lg mb-3">
             S
           </div>
-          <h1 className="text-xl font-semibold" data-testid="text-login-title">Saaf Admin</h1>
+          <h1 className="text-xl font-semibold" data-testid="text-login-title">Rinzo Admin</h1>
           <p className="text-sm text-muted-foreground mt-1">Laundry Marketplace Admin</p>
         </div>
 

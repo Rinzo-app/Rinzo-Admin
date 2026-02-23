@@ -1,6 +1,11 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Dispute } from "@shared/schema";
+import { queryClient } from "@/lib/queryClient";
+import {
+  fetchAdminDisputes,
+  updateAdminDispute,
+  type BackendDispute,
+  ApiError,
+} from "@/lib/backendApi";
 import { DataTable, type Column } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
 import { PageHeader } from "@/components/page-header";
@@ -32,25 +37,31 @@ export default function DisputesPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<Dispute | null>(null);
+  const [selected, setSelected] = useState<BackendDispute | null>(null);
   const [notes, setNotes] = useState("");
+  const [resolution, setResolution] = useState("");
   const [newStatus, setNewStatus] = useState("");
+  const [page, setPage] = useState(1);
 
-  const { data: disputes = [], isLoading } = useQuery<Dispute[]>({
-    queryKey: ["/api/disputes"],
+  const { data: disputesResponse, isLoading } = useQuery({
+    queryKey: ["admin-disputes", page],
+    queryFn: () => fetchAdminDisputes({ page }),
+    staleTime: 30_000,
   });
+  const disputes = disputesResponse?.data ?? [];
+  const disputesPagination = disputesResponse?.pagination;
 
   const updateDispute = useMutation({
-    mutationFn: async ({ id, status, internalNotes }: { id: string; status: string; internalNotes: string }) => {
-      await apiRequest("PATCH", `/api/disputes/${id}`, { status, internalNotes });
+    mutationFn: async ({ id, status, internalNotes, resolution: res }: { id: string; status: string; internalNotes: string; resolution: string }) => {
+      await updateAdminDispute(id, { status, internalNotes, resolution: res || undefined });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/disputes"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-disputes"] });
       toast({ title: "Dispute updated" });
       setSelected(null);
     },
     onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Error", description: err instanceof ApiError ? err.message : err.message, variant: "destructive" });
     },
   });
 
@@ -69,15 +80,25 @@ export default function DisputesPage() {
     return true;
   });
 
-  const openDetail = (dispute: Dispute) => {
+  const openDetail = (dispute: BackendDispute) => {
     setSelected(dispute);
     setNotes(dispute.internalNotes || "");
+    setResolution(dispute.resolution || "");
     setNewStatus(dispute.status);
   };
 
   const statusFlow = ["OPEN", "IN_REVIEW", "RESOLVED", "CLOSED"];
+  const VALID_TRANSITIONS: Record<string, string[]> = {
+    OPEN: ["IN_REVIEW", "CLOSED"],
+    IN_REVIEW: ["RESOLVED", "CLOSED"],
+    RESOLVED: ["CLOSED"],
+    CLOSED: [],
+  };
+  const allowedStatuses = selected
+    ? [selected.status, ...(VALID_TRANSITIONS[selected.status] ?? [])]
+    : statusFlow;
 
-  const columns: Column<Dispute>[] = [
+  const columns: Column<BackendDispute>[] = [
     {
       header: "Raised By",
       accessor: (row) => (
@@ -95,7 +116,7 @@ export default function DisputesPage() {
         </span>
       ),
     },
-    { header: "Category", accessor: "category" },
+    { header: "Category", accessor: (row) => <span className="text-sm">{row.category}</span> },
     {
       header: "Description",
       accessor: (row) => (
@@ -179,6 +200,11 @@ export default function DisputesPage() {
         isLoading={isLoading}
         emptyMessage="No disputes found"
         testIdPrefix="row-dispute"
+        pagination={disputesPagination ? {
+          page: disputesPagination.page,
+          totalPages: disputesPagination.totalPages,
+          onPageChange: setPage,
+        } : undefined}
       />
 
       <Dialog open={!!selected} onOpenChange={(open) => { if (!open) setSelected(null); }}>
@@ -208,6 +234,12 @@ export default function DisputesPage() {
                   <span className="text-muted-foreground">Created</span>
                   <p className="mt-1">{format(new Date(selected.createdAt), "MMM d, yyyy h:mm a")}</p>
                 </div>
+                {selected.updatedAt && (
+                  <div>
+                    <span className="text-muted-foreground">Last Updated</span>
+                    <p className="mt-1">{format(new Date(selected.updatedAt), "MMM d, yyyy h:mm a")}</p>
+                  </div>
+                )}
               </div>
               <div>
                 <span className="text-sm text-muted-foreground">Description</span>
@@ -217,16 +249,23 @@ export default function DisputesPage() {
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Select value={newStatus} onValueChange={setNewStatus}>
+                <Select
+                  value={newStatus}
+                  onValueChange={setNewStatus}
+                  disabled={selected.status === "CLOSED"}
+                >
                   <SelectTrigger data-testid="select-dispute-status">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {statusFlow.map((s) => (
+                    {allowedStatuses.map((s) => (
                       <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {selected.status === "CLOSED" && (
+                  <p className="text-xs text-muted-foreground">This dispute is closed and cannot be changed.</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Internal Notes</Label>
@@ -238,6 +277,24 @@ export default function DisputesPage() {
                   data-testid="textarea-dispute-notes"
                 />
               </div>
+              {(newStatus === "RESOLVED" || newStatus === "CLOSED" || selected.resolution) && (
+                <div className="space-y-2">
+                  <Label>Resolution Note</Label>
+                  <Textarea
+                    value={resolution}
+                    onChange={(e) => setResolution(e.target.value)}
+                    placeholder="Describe how the dispute was resolved..."
+                    rows={3}
+                    data-testid="textarea-dispute-resolution"
+                  />
+                </div>
+              )}
+              {selected.resolution && newStatus !== "RESOLVED" && newStatus !== "CLOSED" && (
+                <div>
+                  <span className="text-sm text-muted-foreground">Resolution</span>
+                  <p className="mt-1 text-sm bg-muted/50 rounded-md p-3">{selected.resolution}</p>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
@@ -247,10 +304,10 @@ export default function DisputesPage() {
             <Button
               onClick={() => {
                 if (selected) {
-                  updateDispute.mutate({ id: selected.id, status: newStatus, internalNotes: notes });
+                  updateDispute.mutate({ id: selected.id, status: newStatus, internalNotes: notes, resolution });
                 }
               }}
-              disabled={updateDispute.isPending}
+              disabled={updateDispute.isPending || selected?.status === "CLOSED"}
               data-testid="button-save-dispute"
             >
               Save Changes

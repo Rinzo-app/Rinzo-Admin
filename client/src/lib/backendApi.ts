@@ -1,0 +1,438 @@
+/**
+ * Centralized client for the unified Rinzo backend.
+ *
+ * All order-related data now comes from the Rinzo backend (not the
+ * admin panel's own Express server).  Auth uses Firebase ID tokens
+ * sent as Authorization: Bearer <token>.
+ */
+
+import { getFirebaseAuth } from "./firebase";
+
+const BACKEND_URL =
+  import.meta.env.VITE_BACKEND_URL || "https://api.rinzo.app";
+
+// ── Error class ──────────────────────────────────────────
+
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  constructor(status: number, message: string, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+// ── Generic request helper ───────────────────────────────
+
+async function request<T = unknown>(
+  method: string,
+  path: string,
+  data?: unknown,
+): Promise<T> {
+  const url = `${BACKEND_URL}${path}`;
+  const headers: Record<string, string> = {};
+
+  // Obtain a fresh Firebase ID token for every request.
+  const auth = getFirebaseAuth();
+  if (auth?.currentUser) {
+    const idToken = await auth.currentUser.getIdToken();
+    headers["Authorization"] = `Bearer ${idToken}`;
+  }
+
+  if (data) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const res = await fetch(url, {
+    method,
+    headers,
+    body: data ? JSON.stringify(data) : undefined,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ message: res.statusText }));
+
+    // Force logout on auth failures
+    if (res.status === 401 || res.status === 403) {
+      if (auth?.currentUser) {
+        const { signOut } = await import("firebase/auth");
+        await signOut(auth);
+      }
+      throw new ApiError(
+        res.status,
+        "Authentication failed — please login again",
+        body.code,
+      );
+    }
+
+    throw new ApiError(
+      res.status,
+      body.message || `${res.status}: ${res.statusText}`,
+      body.code,
+    );
+  }
+
+  return res.json();
+}
+
+// ── Types matching the real backend responses ────────────
+
+export interface BackendOrder {
+  id: string;
+  customerId: string;
+  shopId: string;
+  riderId: string | null;
+  items: { serviceId?: string; serviceName: string; price: number; quantity: number }[];
+  totalAmount: number;
+  status: string;
+  pickupAddress: string;
+  deliveryAddress: string;
+  rejectionReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BackendOrderWithItems extends BackendOrder {
+  /** Joined order_items when fetched via GET /api/orders/:id */
+  items: { serviceId?: string; serviceName: string; price: number; quantity: number }[];
+  /** Payment info (null for legacy orders) */
+  payment: BackendPayment | null;
+}
+
+export interface BackendPayment {
+  id: string;
+  orderId: string;
+  amount: number;
+  method: string;
+  status: string;
+  collectedBy: string | null;
+  collectedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrderEvent {
+  id: string;
+  orderId: string;
+  fromStatus: string | null;
+  toStatus: string;
+  actor: string;
+  actorId: string;
+  createdAt: string;
+}
+
+// ── Mapped order type for the admin UI ───────────────────
+
+export interface AdminOrder {
+  id: string;
+  customerId: string;
+  shopId: string;
+  riderId: string | null;
+  customerName: string;
+  shopName: string;
+  riderName: string | null;
+  items: string;
+  totalAmount: number;
+  status: string;
+  pickupAddress: string;
+  deliveryAddress: string;
+  rejectionReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function mapOrder(raw: BackendOrder): AdminOrder {
+  // items is a JSONB array — derive a summary string
+  const itemSummary = Array.isArray(raw.items)
+    ? raw.items.map((i) => `${i.quantity}× ${i.serviceName}`).join(", ")
+    : String(raw.items);
+
+  return {
+    id: raw.id,
+    customerId: raw.customerId,
+    shopId: raw.shopId,
+    riderId: raw.riderId,
+    customerName: raw.customerId?.substring(0, 8) ?? "—",
+    shopName: raw.shopId?.substring(0, 8) ?? "—",
+    riderName: raw.riderId ? raw.riderId.substring(0, 8) : null,
+    items: itemSummary,
+    totalAmount: raw.totalAmount,
+    status: raw.status,
+    pickupAddress: raw.pickupAddress,
+    deliveryAddress: raw.deliveryAddress,
+    rejectionReason: raw.rejectionReason,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  };
+}
+
+// ── Pagination wrapper type ──────────────────────────────
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+// ── API functions ────────────────────────────────────────
+
+/** GET /api/admin/orders — all orders (paginated) */
+export async function fetchAdminOrders(params?: { page?: number; limit?: number }): Promise<PaginatedResponse<AdminOrder>> {
+  const qs = new URLSearchParams();
+  if (params?.page) qs.set("page", String(params.page));
+  if (params?.limit) qs.set("limit", String(params.limit));
+  const query = qs.toString();
+  const res = await request<PaginatedResponse<BackendOrder>>("GET", `/api/admin/orders${query ? `?${query}` : ""}`);
+  return {
+    data: res.data.map(mapOrder),
+    pagination: res.pagination,
+  };
+}
+
+/** GET /api/orders/:id — single order with items */
+export async function fetchOrderDetail(
+  id: string,
+): Promise<BackendOrderWithItems> {
+  return request<BackendOrderWithItems>("GET", `/api/orders/${id}`);
+}
+
+/** GET /api/orders/:id/events — event log */
+export async function fetchOrderEvents(
+  id: string,
+): Promise<OrderEvent[]> {
+  return request<OrderEvent[]>("GET", `/api/orders/${id}/events`);
+}
+
+/** POST /api/admin/orders/:id/assign-pickup */
+export async function assignPickup(
+  orderId: string,
+  riderId: string,
+): Promise<BackendOrder> {
+  return request<BackendOrder>(
+    "POST",
+    `/api/admin/orders/${orderId}/assign-pickup`,
+    { riderId },
+  );
+}
+
+/** POST /api/admin/orders/:id/assign-delivery */
+export async function assignDelivery(
+  orderId: string,
+): Promise<BackendOrder> {
+  return request<BackendOrder>(
+    "POST",
+    `/api/admin/orders/${orderId}/assign-delivery`,
+  );
+}
+
+// ── User management types ────────────────────────────────
+
+export interface BackendUser {
+  id: string;
+  firebaseUid: string | null;
+  role: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  status: string;
+  createdAt: string;
+}
+
+// ── User management API functions ────────────────────────
+
+/** GET /api/admin/users?status=...&role=...&page=...&limit=... */
+export async function fetchAdminUsers(
+  params?: { status?: string; role?: string; page?: number; limit?: number },
+): Promise<PaginatedResponse<BackendUser>> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set("status", params.status);
+  if (params?.role) qs.set("role", params.role);
+  if (params?.page) qs.set("page", String(params.page));
+  if (params?.limit) qs.set("limit", String(params.limit));
+  const query = qs.toString();
+  return request<PaginatedResponse<BackendUser>>(
+    "GET",
+    `/api/admin/users${query ? `?${query}` : ""}`,
+  );
+}
+
+/** POST /api/admin/users/:id/approve */
+export async function approveUser(userId: string): Promise<BackendUser> {
+  return request<BackendUser>("POST", `/api/admin/users/${userId}/approve`);
+}
+
+/** POST /api/admin/users/:id/reject */
+export async function rejectUser(userId: string): Promise<BackendUser> {
+  return request<BackendUser>("POST", `/api/admin/users/${userId}/reject`);
+}
+
+/** POST /api/admin/users/:id/suspend */
+export async function suspendUser(userId: string): Promise<BackendUser> {
+  return request<BackendUser>("POST", `/api/admin/users/${userId}/suspend`);
+}
+
+// ── Shop & Rider management API functions ────────────────
+
+export interface BackendShop {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  status: string;
+  createdAt: string;
+  /** Owner name — derived from the users row */
+  ownerName: string;
+  /** Fields that may be absent when reading from the users table */
+  category?: string;
+  address?: string;
+}
+
+export interface BackendRider {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  status: string;
+  createdAt: string;
+  vehicleType?: string;
+  licenseNumber?: string;
+}
+
+function mapUserToShop(u: BackendUser): BackendShop {
+  return {
+    id: u.id,
+    name: u.name,
+    ownerName: u.name,
+    email: u.email,
+    phone: u.phone,
+    status: u.status,
+    createdAt: u.createdAt,
+  };
+}
+
+function mapUserToRider(u: BackendUser): BackendRider {
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    phone: u.phone,
+    status: u.status,
+    createdAt: u.createdAt,
+  };
+}
+
+/** GET /api/admin/users?role=SHOP_OWNER — all shop owners (paginated) */
+export async function fetchAdminShops(params?: { page?: number; limit?: number }): Promise<PaginatedResponse<BackendShop>> {
+  const res = await fetchAdminUsers({ role: "SHOP_OWNER", ...params });
+  return {
+    data: res.data.map(mapUserToShop),
+    pagination: res.pagination,
+  };
+}
+
+/** GET /api/admin/users?role=RIDER — all riders (paginated) */
+export async function fetchAdminRiders(params?: { page?: number; limit?: number }): Promise<PaginatedResponse<BackendRider>> {
+  const res = await fetchAdminUsers({ role: "RIDER", ...params });
+  return {
+    data: res.data.map(mapUserToRider),
+    pagination: res.pagination,
+  };
+}
+
+/** POST /api/admin/users/:id/approve — approve shop */
+export async function approveShop(shopId: string): Promise<BackendUser> {
+  return approveUser(shopId);
+}
+
+/** POST /api/admin/users/:id/reject — reject shop */
+export async function rejectShop(shopId: string): Promise<BackendUser> {
+  return rejectUser(shopId);
+}
+
+/** POST /api/admin/users/:id/suspend — suspend shop */
+export async function suspendShop(shopId: string): Promise<BackendUser> {
+  return suspendUser(shopId);
+}
+
+/** POST /api/admin/users/:id/approve — approve rider */
+export async function approveRider(riderId: string): Promise<BackendUser> {
+  return approveUser(riderId);
+}
+
+/** POST /api/admin/users/:id/reject — reject rider */
+export async function rejectRider(riderId: string): Promise<BackendUser> {
+  return rejectUser(riderId);
+}
+
+/** POST /api/admin/users/:id/suspend — suspend rider */
+export async function suspendRider(riderId: string): Promise<BackendUser> {
+  return suspendUser(riderId);
+}
+
+// ── Dispute management types ─────────────────────────────
+
+export type DisputeStatus = "OPEN" | "IN_REVIEW" | "RESOLVED" | "CLOSED";
+export type RaisedByType = "CUSTOMER" | "SHOP" | "RIDER";
+
+export interface BackendDispute {
+  id: string;
+  raisedByType: RaisedByType;
+  raisedById: string;
+  raisedByName: string;
+  orderId: string | null;
+  category: string;
+  description: string;
+  status: DisputeStatus;
+  internalNotes: string | null;
+  resolution: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+// ── Dispute management API functions ─────────────────────
+
+/** GET /api/admin/disputes?status=...&raisedByType=...&page=...&limit=... */
+export async function fetchAdminDisputes(
+  params?: { status?: string; raisedByType?: string; page?: number; limit?: number },
+): Promise<PaginatedResponse<BackendDispute>> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set("status", params.status);
+  if (params?.raisedByType) qs.set("raisedByType", params.raisedByType);
+  if (params?.page) qs.set("page", String(params.page));
+  if (params?.limit) qs.set("limit", String(params.limit));
+  const query = qs.toString();
+  return request<PaginatedResponse<BackendDispute>>(
+    "GET",
+    `/api/admin/disputes${query ? `?${query}` : ""}`,
+  );
+}
+
+/** PATCH /api/admin/disputes/:id  — update status / notes / resolution */
+export async function updateAdminDispute(
+  disputeId: string,
+  data: { status?: string; internalNotes?: string; resolution?: string },
+): Promise<BackendDispute> {
+  return request<BackendDispute>(
+    "PATCH",
+    `/api/admin/disputes/${disputeId}`,
+    data,
+  );
+}
+
+// ── Payment management API functions ──────────────────
+
+/** POST /api/admin/payments/:id/mark-collected */
+export async function markPaymentCollected(
+  paymentId: string,
+): Promise<BackendPayment> {
+  return request<BackendPayment>(
+    "POST",
+    `/api/admin/payments/${paymentId}/mark-collected`,
+  );
+}

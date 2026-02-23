@@ -1,4 +1,4 @@
-import { Store, Bike, MessageSquareWarning, Package, LogOut } from "lucide-react";
+import { Store, Bike, MessageSquareWarning, Package, UserCheck, LogOut } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import {
@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 const navItems = [
   { title: "Shops", url: "/shops", icon: Store },
   { title: "Riders", url: "/riders", icon: Bike },
+  { title: "Approvals", url: "/approvals", icon: UserCheck },
   { title: "Disputes", url: "/disputes", icon: MessageSquareWarning },
   { title: "Orders", url: "/orders", icon: Package },
 ];
@@ -34,7 +35,7 @@ export function AppSidebar() {
             S
           </div>
           <div>
-            <h2 className="text-sm font-semibold leading-none" data-testid="text-app-title">Saaf Admin</h2>
+            <h2 className="text-sm font-semibold leading-none" data-testid="text-app-title">Rinzo Admin</h2>
             <p className="text-xs text-muted-foreground mt-0.5">Laundry Marketplace Admin</p>
           </div>
         </div>
