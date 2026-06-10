@@ -277,6 +277,20 @@ export async function suspendUser(userId: string): Promise<BackendUser> {
   return request<BackendUser>("POST", `/api/admin/users/${userId}/suspend`);
 }
 
+// ── Suspension impact ────────────────────────────────────
+
+export interface UserImpact {
+  role: string;
+  totalActiveOrders: number;
+  byStatus: Record<string, number>;
+  placedWillBeCancelled: number;
+}
+
+/** GET /api/admin/users/:id/impact — active orders affected by suspension */
+export async function fetchUserImpact(userId: string): Promise<UserImpact> {
+  return request<UserImpact>("GET", `/api/admin/users/${userId}/impact`);
+}
+
 // ── Shop & Rider management API functions ────────────────
 
 export interface BackendShop {

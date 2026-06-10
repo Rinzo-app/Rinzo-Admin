@@ -10,6 +10,7 @@ import {
 } from "@/lib/backendApi";
 import { DataTable, type Column } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
+import { SuspendImpactNotice } from "@/components/suspend-impact";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -261,6 +262,9 @@ export default function RidersPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>{confirmTitle}</AlertDialogTitle>
             <AlertDialogDescription>{confirmDesc}</AlertDialogDescription>
+            {confirmAction?.type === "suspend" && (
+              <SuspendImpactNotice userId={confirmAction.rider.id} />
+            )}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
