@@ -52,7 +52,9 @@ async function request<T = unknown>(
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ message: res.statusText }));
+    const raw = await res.json().catch(() => ({ message: res.statusText }));
+    // Backend errors are nested: { error: { code, message } }
+    const body = raw?.error && typeof raw.error === "object" ? raw.error : raw;
 
     // Force logout on auth failures
     if (res.status === 401 || res.status === 403) {
