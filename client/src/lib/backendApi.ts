@@ -317,6 +317,7 @@ export interface BackendRider {
   status: string;
   createdAt: string;
   vehicleType?: string;
+  vehicleNumber?: string;
   licenseNumber?: string;
 }
 
@@ -340,6 +341,9 @@ function mapUserToRider(u: BackendUser): BackendRider {
     phone: u.phone,
     status: u.status,
     createdAt: u.createdAt,
+    vehicleType: (u as any).vehicleType ?? undefined,
+    vehicleNumber: (u as any).vehicleNumber ?? undefined,
+    licenseNumber: (u as any).licenseNumber ?? undefined,
   };
 }
 
