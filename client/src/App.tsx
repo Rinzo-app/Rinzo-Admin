@@ -1,4 +1,8 @@
-import { Switch, Route, Redirect } from "wouter";
+import { Router, Switch, Route, Redirect } from "wouter";
+// Hash-based routing: Render static hosting has no SPA rewrite, so a
+// browser reload of /shops 404s. With #/shops the server always gets
+// "/" and the router reads the hash — works on any static host.
+import { useHashLocation } from "wouter/use-hash-location";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -72,7 +76,9 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <AppContent />
+          <Router hook={useHashLocation}>
+            <AppContent />
+          </Router>
         </AuthProvider>
         <Toaster />
       </TooltipProvider>
