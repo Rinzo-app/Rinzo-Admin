@@ -1,4 +1,10 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+
+/** All backend amounts are integer paise. */
+function formatMoney(paise: number): string {
+  const rupees = (paise ?? 0) / 100;
+  return `₹${Number.isInteger(rupees) ? rupees.toLocaleString() : rupees.toFixed(2)}`;
+}
 import { queryClient } from "@/lib/queryClient";
 import {
   fetchAdminOrders,
@@ -220,7 +226,7 @@ export default function OrdersPage() {
       header: "Total",
       accessor: (row) => (
         <span className="font-medium">
-          Rs. {row.totalAmount.toLocaleString()}
+          {formatMoney(row.totalAmount)}
         </span>
       ),
     },
@@ -363,7 +369,7 @@ export default function OrdersPage() {
                 <div>
                   <span className="text-muted-foreground">Total</span>
                   <p className="mt-1 font-medium">
-                    Rs. {detail.totalAmount.toLocaleString()}
+                    {formatMoney(detail.totalAmount)}
                   </p>
                 </div>
                 <div>
@@ -436,7 +442,7 @@ export default function OrdersPage() {
                     <div>
                       <span className="text-muted-foreground">Amount</span>
                       <p className="mt-1 font-medium">
-                        Rs. {detail.payment.amount.toLocaleString()}
+                        {formatMoney(detail.payment.amount)}
                       </p>
                     </div>
                     {detail.payment.collectedAt && (
