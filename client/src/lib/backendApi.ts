@@ -456,3 +456,13 @@ export async function markPaymentCollected(
     `/api/admin/payments/${paymentId}/mark-collected`,
   );
 }
+
+/** POST /api/admin/payments/:id/settle — cash received from the rider */
+export async function settlePayment(
+  paymentId: string,
+): Promise<BackendPayment> {
+  return request<BackendPayment>(
+    "POST",
+    `/api/admin/payments/${paymentId}/settle`,
+  );
+}

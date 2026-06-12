@@ -14,6 +14,7 @@ import {
   assignPickup,
   assignDelivery,
   markPaymentCollected,
+  settlePayment,
   type AdminOrder,
   type BackendOrderWithItems,
   type OrderEvent,
@@ -172,6 +173,18 @@ export default function OrdersPage() {
       toast({ title: "Error", description: msg, variant: "destructive" });
     },
   });
+  // ── Settle payment mutation ──────────────────────────
+  const settleMutation = useMutation({
+    mutationFn: (paymentId: string) => settlePayment(paymentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order-detail", selectedId] });
+      toast({ title: "Payment settled" });
+    },
+    onError: (err: Error) => {
+      const msg = err instanceof ApiError ? err.message : err.message;
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    },
+  });
   // ── Filtering ──────────────────────────────────────────
   const filtered = orders.filter((o) => {
     if (statusFilter !== "ALL" && o.status !== statusFilter) return false;
@@ -269,6 +282,10 @@ export default function OrdersPage() {
     detail.payment.method === "COD" &&
     detail.payment.status === "PENDING" &&
     detail.status === "DELIVERED";
+  const canSettle =
+    detail?.payment &&
+    detail.payment.method === "COD" &&
+    detail.payment.status === "COLLECTED";
 
   return (
     <div className="p-6">
@@ -503,7 +520,7 @@ export default function OrdersPage() {
               <Separator />
 
               {/* ── Admin actions ─────────────────────── */}
-              {(canAssignPickup || canAssignDelivery || canMarkCollected) && (
+              {(canAssignPickup || canAssignDelivery || canMarkCollected || canSettle) && (
                 <div className="space-y-3">
                   <span className="text-sm font-medium">Admin Actions</span>
 
@@ -625,6 +642,21 @@ export default function OrdersPage() {
                         <Banknote className="w-4 h-4 mr-2" />
                       )}
                       Mark Cash Collected
+                    </Button>
+                  )}
+
+                  {canSettle && (
+                    <Button
+                      onClick={() => settleMutation.mutate(detail.payment!.id)}
+                      disabled={settleMutation.isPending}
+                      data-testid="button-settle-payment"
+                    >
+                      {settleMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      ) : (
+                        <Banknote className="w-4 h-4 mr-2" />
+                      )}
+                      Mark Settled (cash received from rider)
                     </Button>
                   )}
                 </div>
