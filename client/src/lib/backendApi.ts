@@ -309,6 +309,12 @@ export interface BackendShop {
   address?: string;
 }
 
+export type DocumentsStatus =
+  | "NOT_SUBMITTED"
+  | "SUBMITTED"
+  | "VERIFIED"
+  | "REJECTED";
+
 export interface BackendRider {
   id: string;
   name: string;
@@ -319,6 +325,11 @@ export interface BackendRider {
   vehicleType?: string;
   vehicleNumber?: string;
   licenseNumber?: string;
+  dlImageUrl?: string | null;
+  rcImageUrl?: string | null;
+  selfieUrl?: string | null;
+  documentsStatus?: DocumentsStatus;
+  documentsRejectionReason?: string | null;
 }
 
 function mapUserToShop(u: BackendUser): BackendShop {
@@ -344,6 +355,11 @@ function mapUserToRider(u: BackendUser): BackendRider {
     vehicleType: (u as any).vehicleType ?? undefined,
     vehicleNumber: (u as any).vehicleNumber ?? undefined,
     licenseNumber: (u as any).licenseNumber ?? undefined,
+    dlImageUrl: (u as any).dlImageUrl ?? null,
+    rcImageUrl: (u as any).rcImageUrl ?? null,
+    selfieUrl: (u as any).selfieUrl ?? null,
+    documentsStatus: (u as any).documentsStatus ?? "NOT_SUBMITTED",
+    documentsRejectionReason: (u as any).documentsRejectionReason ?? null,
   };
 }
 
@@ -393,6 +409,16 @@ export async function rejectRider(riderId: string): Promise<BackendUser> {
 /** POST /api/admin/users/:id/suspend — suspend rider */
 export async function suspendRider(riderId: string): Promise<BackendUser> {
   return suspendUser(riderId);
+}
+
+/** POST /api/admin/riders/:id/reject-documents — ask a rider to re-upload KYC */
+export async function rejectRiderDocuments(
+  riderUserId: string,
+  reason?: string,
+): Promise<{ ok: boolean; documentsStatus: DocumentsStatus; reason: string }> {
+  return request("POST", `/api/admin/riders/${riderUserId}/reject-documents`, {
+    reason,
+  });
 }
 
 // ── Dispute management types ─────────────────────────────
