@@ -1,4 +1,4 @@
-import { Store, Bike, MessageSquareWarning, Package, UserCheck, LogOut } from "lucide-react";
+import { Store, Bike, MessageSquareWarning, Package, UserCheck, SlidersHorizontal, LogOut } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 import {
@@ -21,6 +21,7 @@ const navItems = [
   { title: "Approvals", url: "/approvals", icon: UserCheck },
   { title: "Disputes", url: "/disputes", icon: MessageSquareWarning },
   { title: "Orders", url: "/orders", icon: Package },
+  { title: "Settings", url: "/settings", icon: SlidersHorizontal },
 ];
 
 export function AppSidebar() {

@@ -421,6 +421,33 @@ export async function rejectRiderDocuments(
   });
 }
 
+// ── Platform settings (pricing + timeouts) ──────────────
+
+export interface PlatformSettings {
+  id: string;
+  deliveryRatePerKm: number;
+  minDeliveryFee: number;
+  fallbackDeliveryFee: number;
+  riderPayoutPerKm: number;
+  platformFee: number;
+  commissionBps: number;
+  placedTimeoutMin: number;
+  noRiderTimeoutMin: number;
+  updatedAt: string;
+}
+
+/** GET /api/admin/settings */
+export async function fetchSettings(): Promise<PlatformSettings> {
+  return request<PlatformSettings>("GET", "/api/admin/settings");
+}
+
+/** PATCH /api/admin/settings */
+export async function updateSettings(
+  patch: Partial<Omit<PlatformSettings, "id" | "updatedAt">>,
+): Promise<PlatformSettings> {
+  return request<PlatformSettings>("PATCH", "/api/admin/settings", patch);
+}
+
 // ── Dispute management types ─────────────────────────────
 
 export type DisputeStatus = "OPEN" | "IN_REVIEW" | "RESOLVED" | "CLOSED";
