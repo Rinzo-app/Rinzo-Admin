@@ -6,6 +6,7 @@ import {
   rejectUser,
   suspendUser,
   verifyUserEmail,
+  deleteUserByAdmin,
   type BackendUser,
   ApiError,
 } from "@/lib/backendApi";
@@ -38,13 +39,13 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Check, X, Ban, RotateCcw, Search, Loader2, MailCheck } from "lucide-react";
+import { Check, X, Ban, RotateCcw, Search, Loader2, MailCheck, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { format } from "date-fns";
 
 // ── Shared status transition mutation ────────────────────
 
-type ConfirmAction = { type: "approve" | "reject" | "suspend" | "reenable"; user: BackendUser } | null;
+type ConfirmAction = { type: "approve" | "reject" | "suspend" | "reenable" | "delete"; user: BackendUser } | null;
 
 function useUserAction(onDone: () => void) {
   const { toast } = useToast();
@@ -100,10 +101,23 @@ function useUserAction(onDone: () => void) {
     },
   });
 
-  const isPending =
-    approve.isPending || reject.isPending || suspend.isPending;
+  const del = useMutation({
+    mutationFn: (id: string) => deleteUserByAdmin(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      toast({ title: "User deleted" });
+      onDone();
+    },
+    onError: (err: Error) => {
+      toast({ title: "Couldn't delete", description: err.message, variant: "destructive" });
+      onDone();
+    },
+  });
 
-  return { approve, reject, suspend, isPending };
+  const isPending =
+    approve.isPending || reject.isPending || suspend.isPending || del.isPending;
+
+  return { approve, reject, suspend, del, isPending };
 }
 
 // ── User table for a given role ──────────────────────────
@@ -114,7 +128,7 @@ function UserTable({ role }: { role: "SHOP_OWNER" | "RIDER" }) {
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const [page, setPage] = useState(1);
 
-  const { approve, reject, suspend, isPending } = useUserAction(() => setConfirmAction(null));
+  const { approve, reject, suspend, del, isPending } = useUserAction(() => setConfirmAction(null));
   const { toast } = useToast();
 
   const verifyEmail = useMutation({
@@ -159,6 +173,8 @@ function UserTable({ role }: { role: "SHOP_OWNER" | "RIDER" }) {
       reject.mutate(id);
     } else if (confirmAction.type === "suspend") {
       suspend.mutate(id);
+    } else if (confirmAction.type === "delete") {
+      del.mutate(id);
     }
   }
 
@@ -171,7 +187,9 @@ function UserTable({ role }: { role: "SHOP_OWNER" | "RIDER" }) {
         ? `Re-enable ${confirmAction.user.name}?`
         : confirmAction.type === "reject"
           ? `Reject ${confirmAction.user.name}?`
-          : `Suspend ${confirmAction.user.name}?`
+          : confirmAction.type === "delete"
+            ? `Delete ${confirmAction.user.name}?`
+            : `Suspend ${confirmAction.user.name}?`
     : "";
 
   const confirmDesc = confirmAction
@@ -179,10 +197,15 @@ function UserTable({ role }: { role: "SHOP_OWNER" | "RIDER" }) {
       ? `This will grant ${roleLabel} access to the platform.`
       : confirmAction.type === "reject"
         ? "This user will be rejected and cannot access the platform."
-        : "This user will be suspended and lose access immediately."
+        : confirmAction.type === "delete"
+          ? "Permanently removes this account: personal data is erased and their login is deleted. Order history is kept (anonymized). Blocked if they have orders in progress or unsettled cash."
+          : "This user will be suspended and lose access immediately."
     : "";
 
-  const confirmIsDestructive = confirmAction?.type === "reject" || confirmAction?.type === "suspend";
+  const confirmIsDestructive =
+    confirmAction?.type === "reject" ||
+    confirmAction?.type === "suspend" ||
+    confirmAction?.type === "delete";
 
   const columns: Column<BackendUser>[] = [
     {
@@ -291,6 +314,16 @@ function UserTable({ role }: { role: "SHOP_OWNER" | "RIDER" }) {
               <RotateCcw className="w-4 h-4 text-blue-600" />
             </Button>
           )}
+          <Button
+            size="icon"
+            variant="ghost"
+            disabled={isPending}
+            onClick={(e) => { e.stopPropagation(); setConfirmAction({ type: "delete", user: row }); }}
+            title="Delete account"
+            data-testid={`button-delete-${row.id}`}
+          >
+            <Trash2 className="w-4 h-4 text-red-600" />
+          </Button>
         </div>
       ),
     },
@@ -361,7 +394,9 @@ function UserTable({ role }: { role: "SHOP_OWNER" | "RIDER" }) {
                   ? "Re-enable"
                   : confirmAction?.type === "reject"
                     ? "Reject"
-                    : "Suspend"}
+                    : confirmAction?.type === "delete"
+                      ? "Delete"
+                      : "Suspend"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -428,6 +428,13 @@ export async function verifyUserEmail(
   return request("POST", `/api/admin/users/${userId}/verify-email`);
 }
 
+/** POST /api/admin/users/:id/delete — admin removes a user/shop/rider */
+export async function deleteUserByAdmin(
+  userId: string,
+): Promise<{ ok: boolean; deleted: boolean }> {
+  return request("POST", `/api/admin/users/${userId}/delete`);
+}
+
 // ── Platform settings (pricing + timeouts) ──────────────
 
 export interface PlatformSettings {
