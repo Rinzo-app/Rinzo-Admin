@@ -5,7 +5,9 @@ import {
   approveShop,
   rejectShop,
   suspendShop,
+  rejectShopDocuments,
   type BackendShop,
+  type DocumentsStatus,
   ApiError,
 } from "@/lib/backendApi";
 import { DataTable, type Column } from "@/components/data-table";
@@ -13,6 +15,16 @@ import { StatusBadge } from "@/components/status-badge";
 import { SuspendImpactNotice } from "@/components/suspend-impact";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -31,17 +43,26 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Check, X, Ban, RotateCcw, Search, Loader2 } from "lucide-react";
+import { Check, X, Ban, RotateCcw, Search, Loader2, FileText } from "lucide-react";
 import { useState } from "react";
 import { format } from "date-fns";
 
 type ConfirmAction = { type: "approve" | "reject" | "suspend" | "reenable"; shop: BackendShop } | null;
+
+const DOC_META: Record<DocumentsStatus, { label: string; className: string }> = {
+  NOT_SUBMITTED: { label: "Not submitted", className: "bg-slate-100 text-slate-600" },
+  SUBMITTED: { label: "Under review", className: "bg-amber-100 text-amber-700" },
+  VERIFIED: { label: "Verified", className: "bg-emerald-100 text-emerald-700" },
+  REJECTED: { label: "Rejected", className: "bg-red-100 text-red-700" },
+};
 
 export default function ShopsPage() {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [search, setSearch] = useState("");
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
+  const [docReview, setDocReview] = useState<BackendShop | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
   const [page, setPage] = useState(1);
 
   const { data: shopsResponse, isLoading } = useQuery({
@@ -90,6 +111,29 @@ export default function ShopsPage() {
       setConfirmAction(null);
     },
   });
+
+  const approveDocs = useMutation({
+    mutationFn: (id: string) => approveShop(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-shops"] });
+      toast({ title: "Shop approved", description: "Documents verified and shop activated." });
+      setDocReview(null);
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const rejectDocs = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => rejectShopDocuments(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-shops"] });
+      toast({ title: "Documents returned", description: "The shop has been asked to re-upload." });
+      setDocReview(null);
+      setRejectReason("");
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const isDocPending = approveDocs.isPending || rejectDocs.isPending;
 
   const isPending = approve.isPending || reject.isPending || suspend.isPending;
 
@@ -144,6 +188,27 @@ export default function ShopsPage() {
     { header: "Category", accessor: (row) => <span className="text-sm text-muted-foreground">{row.category || "—"}</span> },
     { header: "Email", accessor: (row) => <span className="text-sm text-muted-foreground">{row.email || "—"}</span> },
     { header: "Phone", accessor: (row) => <span className="text-sm">{row.phone || "—"}</span> },
+    {
+      header: "Documents",
+      accessor: (row) => {
+        const ds = row.documentsStatus ?? "NOT_SUBMITTED";
+        const meta = DOC_META[ds];
+        const hasAny = !!(row.panImageUrl || row.licenseImageUrl || row.panNumber || row.gstNumber);
+        return (
+          <button
+            type="button"
+            disabled={!hasAny}
+            onClick={(e) => { e.stopPropagation(); setDocReview(row); setRejectReason(""); }}
+            className="inline-flex items-center gap-1.5 disabled:opacity-70 disabled:cursor-default"
+            title={hasAny ? "Review documents" : "No documents submitted"}
+            data-testid={`button-review-shop-docs-${row.id}`}
+          >
+            <Badge className={meta.className}>{meta.label}</Badge>
+            {hasAny && <FileText className="w-3.5 h-3.5 text-muted-foreground" />}
+          </button>
+        );
+      },
+    },
     {
       header: "Status",
       accessor: (row) => <StatusBadge status={row.status} />,
@@ -285,6 +350,75 @@ export default function ShopsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!docReview} onOpenChange={(o) => { if (!o && !isDocPending) { setDocReview(null); setRejectReason(""); } }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Documents — {docReview?.name}</DialogTitle>
+            <DialogDescription>
+              Review the shop's business documents. Approving verifies them and activates the shop.
+            </DialogDescription>
+          </DialogHeader>
+
+          {docReview && (
+            <div className="space-y-4">
+              {docReview.documentsStatus === "REJECTED" && docReview.documentsRejectionReason && (
+                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  <span className="font-medium">Previously returned: </span>{docReview.documentsRejectionReason}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><span className="text-muted-foreground">PAN: </span>{docReview.panNumber || "—"}</div>
+                <div><span className="text-muted-foreground">GST: </span>{docReview.gstNumber || "—"}</div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {([["PAN card", docReview.panImageUrl], ["Shop licence", docReview.licenseImageUrl]] as const).map(([label, url]) => (
+                  <div key={label} className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                    {url ? (
+                      <a href={url} target="_blank" rel="noopener noreferrer">
+                        <img src={url} alt={label} className="aspect-video w-full rounded-md border object-cover hover:opacity-90" />
+                      </a>
+                    ) : (
+                      <div className="flex aspect-video w-full items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">Not provided</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">Reason (required to return documents)</p>
+                <Textarea
+                  placeholder="e.g. PAN photo is blurry — please re-upload."
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  rows={2}
+                  data-testid="textarea-shop-reject-reason"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="destructive"
+              disabled={isDocPending || !rejectReason.trim() || !docReview}
+              onClick={() => docReview?.shopId && rejectDocs.mutate({ id: docReview.id, reason: rejectReason.trim() })}
+              data-testid="button-confirm-reject-shop-docs"
+            >
+              {rejectDocs.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Return for re-upload
+            </Button>
+            <Button
+              disabled={isDocPending || !docReview}
+              onClick={() => docReview && approveDocs.mutate(docReview.id)}
+              data-testid="button-confirm-approve-shop-docs"
+            >
+              {approveDocs.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Approve shop
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

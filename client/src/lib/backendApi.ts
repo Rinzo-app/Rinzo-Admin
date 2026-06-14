@@ -307,6 +307,15 @@ export interface BackendShop {
   /** Fields that may be absent when reading from the users table */
   category?: string;
   address?: string;
+  shopId?: string;
+  shopName?: string;
+  panNumber?: string | null;
+  gstNumber?: string | null;
+  panImageUrl?: string | null;
+  licenseImageUrl?: string | null;
+  documentsStatus?: DocumentsStatus;
+  documentsRejectionReason?: string | null;
+  payoutMethod?: string | null;
 }
 
 export type DocumentsStatus =
@@ -333,14 +342,24 @@ export interface BackendRider {
 }
 
 function mapUserToShop(u: BackendUser): BackendShop {
+  const a = u as any;
   return {
     id: u.id,
-    name: u.name,
+    name: a.shopName ?? u.name,
     ownerName: u.name,
     email: u.email,
     phone: u.phone,
     status: u.status,
     createdAt: u.createdAt,
+    shopId: a.shopId ?? undefined,
+    shopName: a.shopName ?? undefined,
+    panNumber: a.panNumber ?? null,
+    gstNumber: a.gstNumber ?? null,
+    panImageUrl: a.panImageUrl ?? null,
+    licenseImageUrl: a.licenseImageUrl ?? null,
+    documentsStatus: a.documentsStatus ?? "NOT_SUBMITTED",
+    documentsRejectionReason: a.documentsRejectionReason ?? null,
+    payoutMethod: a.payoutMethod ?? null,
   };
 }
 
@@ -473,6 +492,53 @@ export async function settleRiderCash(
   riderUserId: string,
 ): Promise<{ ok: boolean }> {
   return request("POST", `/api/admin/riders/${riderUserId}/settle`);
+}
+
+/** POST /api/admin/shops/:id/reject-documents (:id = owner user id) */
+export async function rejectShopDocuments(
+  ownerUserId: string,
+  reason?: string,
+): Promise<{ ok: boolean }> {
+  return request("POST", `/api/admin/shops/${ownerUserId}/reject-documents`, { reason });
+}
+
+export interface ShopOutstanding {
+  shopId: string;
+  name?: string;
+  ownerId?: string;
+  payoutMethod?: string | null;
+  bankAccountName?: string | null;
+  bankAccountNumber?: string | null;
+  bankIfsc?: string | null;
+  upiId?: string | null;
+  earned: number;
+  paidOut: number;
+  balance: number;
+}
+
+export interface ShopPayoutRecord {
+  id: string;
+  shopId: string;
+  amount: number;
+  method: string;
+  reference: string | null;
+  createdAt: string;
+}
+
+/** GET /api/admin/shop-payouts */
+export async function fetchShopPayouts(): Promise<{
+  outstanding: ShopOutstanding[];
+  recent: ShopPayoutRecord[];
+}> {
+  return request("GET", "/api/admin/shop-payouts");
+}
+
+/** POST /api/admin/shops/:id/payout (:id = shop id) */
+export async function payShop(
+  shopId: string,
+  reference?: string,
+): Promise<{ ok: boolean }> {
+  return request("POST", `/api/admin/shops/${shopId}/payout`, { reference });
 }
 
 // ── Platform settings (pricing + timeouts) ──────────────
