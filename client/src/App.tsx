@@ -17,6 +17,7 @@ import DisputesPage from "@/pages/disputes";
 import OrdersPage from "@/pages/orders";
 import ApprovalsPage from "@/pages/approvals";
 import SettingsPage from "@/pages/settings";
+import SettlementsPage from "@/pages/settlements";
 import NotFound from "@/pages/not-found";
 import { Loader2 } from "lucide-react";
 
@@ -45,6 +46,7 @@ function AuthenticatedLayout() {
               <Route path="/disputes" component={DisputesPage} />
               <Route path="/orders" component={OrdersPage} />
               <Route path="/approvals" component={ApprovalsPage} />
+              <Route path="/settlements" component={SettlementsPage} />
               <Route path="/settings" component={SettingsPage} />
               <Route component={NotFound} />
             </Switch>

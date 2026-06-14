@@ -435,6 +435,46 @@ export async function deleteUserByAdmin(
   return request("POST", `/api/admin/users/${userId}/delete`);
 }
 
+// ── Rider COD settlements ────────────────────────────────
+
+export interface RiderOutstanding {
+  riderId: string;
+  userId: string | null;
+  name: string;
+  phone: string | null;
+  cashInHand: number;
+  yourCut: number;
+  handOver: number;
+  orderCount: number;
+}
+
+export interface SettlementRecord {
+  id: string;
+  riderId: string;
+  amount: number;
+  cashCollected: number;
+  method: string;
+  status: string;
+  createdBy: string;
+  createdAt: string;
+  paidAt: string | null;
+}
+
+/** GET /api/admin/settlements — riders holding cash + recent settlements */
+export async function fetchSettlements(): Promise<{
+  outstanding: RiderOutstanding[];
+  recent: SettlementRecord[];
+}> {
+  return request("GET", "/api/admin/settlements");
+}
+
+/** POST /api/admin/riders/:id/settle — record a rider's cash hand-over (:id = user id) */
+export async function settleRiderCash(
+  riderUserId: string,
+): Promise<{ ok: boolean }> {
+  return request("POST", `/api/admin/riders/${riderUserId}/settle`);
+}
+
 // ── Platform settings (pricing + timeouts) ──────────────
 
 export interface PlatformSettings {
