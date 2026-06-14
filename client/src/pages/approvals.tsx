@@ -5,6 +5,7 @@ import {
   approveUser,
   rejectUser,
   suspendUser,
+  verifyUserEmail,
   type BackendUser,
   ApiError,
 } from "@/lib/backendApi";
@@ -37,7 +38,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Check, X, Ban, RotateCcw, Search, Loader2 } from "lucide-react";
+import { Check, X, Ban, RotateCcw, Search, Loader2, MailCheck } from "lucide-react";
 import { useState } from "react";
 import { format } from "date-fns";
 
@@ -114,6 +115,18 @@ function UserTable({ role }: { role: "SHOP_OWNER" | "RIDER" }) {
   const [page, setPage] = useState(1);
 
   const { approve, reject, suspend, isPending } = useUserAction(() => setConfirmAction(null));
+  const { toast } = useToast();
+
+  const verifyEmail = useMutation({
+    mutationFn: (id: string) => verifyUserEmail(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      toast({ title: "Email marked verified", description: "This user can now pass the verification gate." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
 
   const { data: usersResponse, isLoading } = useQuery({
     queryKey: ["admin-users", role, page],
@@ -208,6 +221,16 @@ function UserTable({ role }: { role: "SHOP_OWNER" | "RIDER" }) {
       header: "Actions",
       accessor: (row) => (
         <div className="flex items-center gap-1">
+          <Button
+            size="icon"
+            variant="ghost"
+            disabled={verifyEmail.isPending}
+            onClick={(e) => { e.stopPropagation(); verifyEmail.mutate(row.id); }}
+            title="Mark email verified (override)"
+            data-testid={`button-verify-email-${row.id}`}
+          >
+            <MailCheck className="w-4 h-4 text-emerald-600" />
+          </Button>
           {row.status === "PENDING" && (
             <>
               <Button

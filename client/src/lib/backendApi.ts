@@ -421,6 +421,13 @@ export async function rejectRiderDocuments(
   });
 }
 
+/** POST /api/admin/users/:id/verify-email — operator override for the email gate */
+export async function verifyUserEmail(
+  userId: string,
+): Promise<{ ok: boolean; emailVerified: boolean }> {
+  return request("POST", `/api/admin/users/${userId}/verify-email`);
+}
+
 // ── Platform settings (pricing + timeouts) ──────────────
 
 export interface PlatformSettings {
